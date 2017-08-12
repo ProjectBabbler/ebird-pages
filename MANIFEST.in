@@ -1,0 +1,4 @@
+include *.md *.txt *.py *.cfg
+recursive-include bin *.py
+recursive-include ebird *.py
+recursive-include tests *.py
