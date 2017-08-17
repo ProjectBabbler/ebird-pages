@@ -5,7 +5,7 @@ import unittest
 
 from setuptools import setup
 
-from ebird.pages import VERSION
+from ebird.pages.version import __version__
 
 
 def read(filename):
@@ -22,7 +22,7 @@ def test_suite():
 
 setup(
     name='ebird-pages',
-    version=VERSION,
+    version=__version__,
     description='Scrapers for pages on the eBird web site',
     long_description=read("README.md"),
     author='ProjectBabbler',
