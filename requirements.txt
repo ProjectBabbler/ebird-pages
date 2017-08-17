@@ -1,5 +1,12 @@
+beautifulsoup4==4.6.0
+certifi==2017.7.27.1
+chardet==3.0.4
+idna==2.5
+lxml==3.8.0
+pluggy==0.4.0
+py==1.4.34
 pyCLI==2.0.3
 requests==2.18.2
-beautifulsoup4==4.6.0
-lxml==3.8.0
 tox==2.7.0
+urllib3==1.22
+virtualenv==15.1.0
