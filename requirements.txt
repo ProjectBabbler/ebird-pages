@@ -5,7 +5,7 @@ idna==2.5
 lxml==3.8.0
 pluggy==0.4.0
 py==1.4.34
-pyCLI==2.0.3
+click==6.7
 requests==2.18.2
 tox==2.7.0
 urllib3==1.22

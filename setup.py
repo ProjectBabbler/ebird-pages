@@ -32,7 +32,10 @@ setup(
     keywords='eBird web scraper',
     packages=['ebird.pages'],
     test_suite='setup.test_suite',
-    scripts=['bin/ebird-get-checklists'],
+    entry_points="""
+        [console_scripts]
+        get-checklist=ebird.pages.scripts.get_checklist:cli
+    """,
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Console',
@@ -54,6 +57,6 @@ setup(
         'requests',
         'beautifulsoup4',
         'lxml',
-        'pyCLI'
+        'Click'
     ],
 )

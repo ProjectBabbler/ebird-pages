@@ -36,7 +36,7 @@ Each of the functions has a corresponding script that can be used on the
 command-line:
 
 ```sh
-$ ebird-get-checklists S38429565
+$ get-checklist --id S38429565 --out checklist.json
 ```
 The script allows data for one or more checklists to be downloaded and written 
 to a file in JSON format.
@@ -47,7 +47,7 @@ ebird-pages works with Python 3.3+.
 
 ## Dependencies
 
-eBird Pages makes use of the following packages: Requests, BeautifulSoup4, lxml and pyCLI.
+eBird Pages makes use of the following packages: Requests, BeautifulSoup4, lxml and Click.
 See requirements.txt for the version numbers of each of the libraries.
 
 ## License
