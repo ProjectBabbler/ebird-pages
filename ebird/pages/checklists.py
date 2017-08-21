@@ -1,4 +1,3 @@
-# TODO What to do about logging
 # TODO Add support for entry comments.
 # TODO Add support for age/sex breakdown
 # TODO Add support for extracting information on uploaded media.
@@ -8,9 +7,6 @@ import datetime
 import re
 
 from bs4 import BeautifulSoup
-from bs4.element import Tag
-
-from typing import Callable
 
 from ebird.pages.utils import get_content
 
@@ -40,7 +36,7 @@ PROTOCOLS = (
 )
 
 
-def get_checklist(identifier: str) -> dict:
+def get_checklist(identifier):
     """
     Get the data for a checklist from its eBird web page.
 
@@ -65,7 +61,7 @@ def get_checklist(identifier: str) -> dict:
     return checklist
 
 
-def _get_location(node: Tag) -> dict:
+def _get_location(node):
     """
     Get the detail of the location where the checklist was recorded.
 
@@ -90,7 +86,7 @@ def _get_location(node: Tag) -> dict:
     return checklist
 
 
-def _get_site(node: Tag) -> str:
+def _get_site(node):
     """
     Get the name of the site where the checklist was recorded.
 
@@ -105,7 +101,7 @@ def _get_site(node: Tag) -> str:
     return ' '.join(site.split())
 
 
-def _get_subnational2(node: Tag) -> str:
+def _get_subnational2(node):
     """
     Get the county where the checklist was recorded.
 
@@ -120,7 +116,7 @@ def _get_subnational2(node: Tag) -> str:
     return county
 
 
-def _get_subnational1(node: Tag) -> str:
+def _get_subnational1(node):
     """
     Get the region where the checklist was recorded.
 
@@ -135,7 +131,7 @@ def _get_subnational1(node: Tag) -> str:
     return region
 
 
-def _get_country(node: Tag) -> str:
+def _get_country(node):
     """
     Get the country where the checklist was recorded.
 
@@ -150,7 +146,7 @@ def _get_country(node: Tag) -> str:
     return country
 
 
-def _get_location_identifier(node: Tag) -> str:
+def _get_location_identifier(node):
     """
     Get the unique identifier for the site if it is a hotspot.
 
@@ -172,7 +168,7 @@ def _get_location_identifier(node: Tag) -> str:
     return identifier
 
 
-def _get_latitude(node: Tag) -> float:
+def _get_latitude(node):
     """
     Get the latitude of the location.
 
@@ -191,7 +187,7 @@ def _get_latitude(node: Tag) -> float:
     return latitude
 
 
-def _get_longitude(node: Tag) -> float:
+def _get_longitude(node):
     """
     Get the longitude of the location.
 
@@ -210,7 +206,7 @@ def _get_longitude(node: Tag) -> float:
     return longitude
 
 
-def _point_protocol(node: Tag) -> dict:
+def _point_protocol(node):
     """
     Get the effort for checklists following protocols where the observer(s)
     remain stationary.
@@ -239,7 +235,7 @@ def _point_protocol(node: Tag) -> dict:
     return results
 
 
-def _distance_protocol(node: Tag) -> dict:
+def _distance_protocol(node):
     """
     Get the effort for checklists following protocols where the observer(s)
     are moving.
@@ -272,7 +268,7 @@ def _distance_protocol(node: Tag) -> dict:
     return results
 
 
-def _incidental_observations(node: Tag) -> dict:
+def _incidental_observations(node):
     """
     Get the effort for checklists with incidental observations.
 
@@ -292,7 +288,7 @@ def _incidental_observations(node: Tag) -> dict:
     return results
 
 
-def _historical_observations(node: Tag) -> dict:
+def _historical_observations(node):
     """
     Get the effort for checklists with historical records.
 
@@ -331,7 +327,7 @@ def _historical_observations(node: Tag) -> dict:
     return results
 
 
-def _area_protocol(include_area: bool=True) -> Callable[[Tag], dict]:
+def _area_protocol(include_area=True):
     """
     Get the effort for checklists following protocols where the observer(s)
     are covering an area.
@@ -346,7 +342,7 @@ def _area_protocol(include_area: bool=True) -> Callable[[Tag], dict]:
 
     """
 
-    def _get_area_fields(node: Tag) -> dict:
+    def _get_area_fields(node):
         results = {
             'time': _get_time(node),
             'area': _get_area(node),
@@ -375,7 +371,7 @@ def _area_protocol(include_area: bool=True) -> Callable[[Tag], dict]:
     return _get_area_fields
 
 
-def _get_date_and_effort(node: Tag) -> dict:
+def _get_date_and_effort(node):
     """
     Get the date and details of the protocol, if any, used to create the checklist.
 
@@ -415,7 +411,7 @@ _get_date_and_effort.protocols = {
 }
 
 
-def _get_protocol(node: Tag) -> str:
+def _get_protocol(node):
     """
     Get the method used to count the birds in the checklist.
 
@@ -431,7 +427,7 @@ def _get_protocol(node: Tag) -> str:
     return protocol
 
 
-def _get_date(node: Tag) -> datetime:
+def _get_date(node):
     """
     Get the date the checklist was made.
 
@@ -445,7 +441,7 @@ def _get_date(node: Tag) -> datetime:
     return datetime.datetime.strptime(value, '%a %b %d, %Y').date()
 
 
-def _get_time(node: Tag) -> datetime:
+def _get_time(node):
     """
     Get the time the checklist was started.
 
@@ -463,7 +459,7 @@ def _get_time(node: Tag) -> datetime:
     return time
 
 
-def _get_party_size(node: Tag) -> int:
+def _get_party_size(node):
     """
     Get the number of observers.
 
@@ -481,7 +477,7 @@ def _get_party_size(node: Tag) -> int:
     return count
 
 
-def _get_distance(node: Tag) -> tuple:
+def _get_distance(node):
     """
     Get the distance covered.
 
@@ -519,7 +515,7 @@ _get_distance.units = {
 }
 
 
-def _get_area(node: Tag) -> tuple:
+def _get_area(node):
     """
     Get the area covered in hectares or acres.
 
@@ -553,7 +549,7 @@ _get_area.units = {
 }
 
 
-def _get_duration(node: Tag) -> datetime.timedelta:
+def _get_duration(node):
     """
     Get the time spent following the protocol.
 
@@ -586,7 +582,7 @@ def _get_duration(node: Tag) -> datetime.timedelta:
     return duration
 
 
-def _get_observers(node: Tag) -> list:
+def _get_observers(node):
     """
     Get the list of observers.
 
@@ -609,7 +605,7 @@ def _get_observers(node: Tag) -> list:
     return observers
 
 
-def _get_comment(node: Tag) -> str:
+def _get_comment(node):
     """
     Get the comment about the checklist.
 
@@ -630,7 +626,7 @@ def _get_comment(node: Tag) -> str:
     return comment
 
 
-def _get_entries(node: Tag) -> list:
+def _get_entries(node):
     """
     Get the list of species seen.
     
@@ -646,7 +642,7 @@ def _get_entries(node: Tag) -> list:
     return entries
 
 
-def _get_entry(node: Tag) -> dict:
+def _get_entry(node):
     """
     Get the details of each species seen.
 
@@ -661,7 +657,7 @@ def _get_entry(node: Tag) -> dict:
     }
 
 
-def _get_species(node: Tag) -> str:
+def _get_species(node):
     """
     Get common name of the species seen.
 
@@ -675,7 +671,7 @@ def _get_species(node: Tag) -> str:
     return value
 
 
-def _get_count(node: Tag) -> int:
+def _get_count(node):
     """
     Get the count for the species seen.
 
@@ -693,7 +689,7 @@ def _get_count(node: Tag) -> int:
     return count
 
 
-def _get_complete(node: Tag) -> bool:
+def _get_complete(node):
     """
     Get flag indicating whether the checklist contains all species seen.
 
