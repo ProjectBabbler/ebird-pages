@@ -2,7 +2,6 @@
 
 import os
 import re
-import unittest
 
 from setuptools import setup
 
@@ -20,13 +19,6 @@ def find_version(path):
     raise RuntimeError("Unable to find version string.")
 
 
-def test_suite():
-    # Force test discovery to only look at the tests directory
-    # otherwise all the tests get executed twice.
-    test_loader = unittest.TestLoader()
-    return test_loader.discover('tests', pattern='test_*.py')
-
-
 setup(
     name='ebird-pages',
     version=find_version("ebird/pages/__init__.py"),
@@ -38,7 +30,7 @@ setup(
     license='GPL',
     keywords='eBird web scraper',
     packages=['ebird.pages'],
-    test_suite='setup.test_suite',
+    test_suite='tests.unit',
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Console',
