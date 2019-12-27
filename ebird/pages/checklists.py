@@ -13,7 +13,7 @@ from ebird.pages.utils import get_content
 # Base URL for the page to view a checklist - the unique identifier is
 # appended.
 
-CHECKLIST_URL = "http://ebird.org/ebird/view/checklist/"
+CHECKLIST_URL = "https://ebird.org/checklist/"
 
 # The list of supported protocols.
 
@@ -629,14 +629,14 @@ def _get_comment(node):
 def _get_entries(node):
     """
     Get the list of species seen.
-    
+
     :param node: the tag for body of the Species section.
 
     :return: a list of species seen.
-    
+
     """
     entries = []
-    tags = node.find_all('tr', class_='spp-entry')
+    tags = node.find_all('li', class_='spp-entry')
     for tag in tags:
         entries.append(_get_entry(tag))
     return entries
