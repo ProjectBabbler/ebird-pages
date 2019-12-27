@@ -49,9 +49,8 @@ setup(
         'Topic :: Internet',
     ],
     install_requires=[
-        'requests',
         'beautifulsoup4',
         'lxml',
-        'Click'
+        'requests',
     ],
 )
