@@ -1,226 +1,131 @@
-# TODO Add support for entry comments.
-# TODO Add support for age/sex breakdown
-# TODO Add support for extracting information on uploaded media.
-# TODO Add support for Oiled Birds protocol
-
 import datetime
 import re
+import requests
 
 from bs4 import BeautifulSoup
-
-from ebird.pages.utils import get_content
-
-# Base URL for the page to view a checklist - the unique identifier is
-# appended.
-
-CHECKLIST_URL = "https://ebird.org/checklist/"
-
-# The list of supported protocols.
-
-PROTOCOLS = (
-    'Stationary',
-    'Traveling',
-    'Incidental',
-    'Historical',
-    'Area,',
-    'Banding',
-    'eBird Pelagic Protocol',
-    'Nocturnal Flight Call Count',
-    'Random',
-    'CWC Point Count',
-    'CWC Area Count',
-    'PROALAS',
-    'TNC California Waterbird Count',
-    'Rusty BlackbirdSpring Migration Blitz',
-    'California Brown Pelican Survey',
-)
 
 
 def get_checklist(identifier):
     """
     Get the data for a checklist from its eBird web page.
 
-    :param identifier: the unique identifier for the checklist.
+    Args:
+        identifier (str): the unique identifier for the checklist, e.g. S62633426
 
-    :return: a dict containing all the fields extracted from the web page.
+    Returns:
+        (dict): all the fields extracted from the web page.
 
-    """
-    checklist = {}
-
-    content = get_content(CHECKLIST_URL + identifier)
-    parser = BeautifulSoup(content, "lxml")
-
-    sections = parser.find_all('div', class_='report-section')
-
-    checklist['identifier'] = identifier
-    checklist['location'] = _get_location(sections[0])
-    checklist.update(_get_date_and_effort(sections[1]))
-    checklist['entries'] = _get_entries(sections[2])
-    checklist['complete'] = _get_complete(sections[3])
-
-    return checklist
-
-
-def _get_location(node):
-    """
-    Get the detail of the location where the checklist was recorded.
-
-    :param node: the Tag for the body of the Location section.
-
-    :return: a dict containing the fields describing the location.
+    ToDo:
+        * scrape entry comments.
+        * scrape age/sex table
+        * scrape uploaded media
+        * scrape observers
+        * update scraping of different protocols
 
     """
-    checklist = {
-        'name': _get_site(node),
-        'subnational2': _get_subnational2(node),
-        'subnational1': _get_subnational1(node),
-        'country': _get_country(node),
-        'lat': _get_latitude(node),
-        'lon': _get_longitude(node),
+    url = "https://ebird.org/checklist/" + identifier
+    response = requests.get(url)
+    response.raise_for_status()
+    return _scrape_checklist(response.text)
+
+
+def _scrape_checklist(contents):
+    soup = BeautifulSoup(contents, "lxml")
+    return {
+        'identifier': _scrape_identifier(soup),
+        'date': _scrape_date(soup),
+        'protocol': _scrape_protocol(soup),
+        'location': _scrape_location(soup),
+        'entries': _scrape_entries(soup),
+        'comment': _scrape_comment(soup),
+        'complete': _scrape_complete(soup)
     }
 
-    identifier = _get_location_identifier(node)
-    if identifier:
-        checklist['identifier'] = identifier
 
-    return checklist
+def _scrape_identifier(node):
+    return node.find('input', {'name': 'subID'})['value']
 
 
-def _get_site(node):
-    """
-    Get the name of the site where the checklist was recorded.
-
-    :param node: the Tag for the body of the Location section.
-
-    :return: the name of the site.
-
-    """
-    tag = node.find('h5', class_='obs-loc')
-    location = tag.text.split('( Map )')[0]
-    site = location.rsplit(',', maxsplit=3)[0]
-    return ' '.join(site.split())
-
-
-def _get_subnational2(node):
-    """
-    Get the county where the checklist was recorded.
-
-    :param node: the Tag for the body of the Location section.
-
-    :return: the name of the county.
-
-    """
-    tag = node.find('h5', class_='obs-loc')
-    location = tag.text.split('( Map )')[0]
-    county = location.split(',')[-3].strip()
-    return county
+def _scrape_location(node):
+    node = node.find_all('section')[2]
+    coords = _scrape_coords(node)
+    return {
+        'name': _scrape_site(node),
+        'identifier': _scrape_location_identifier(node),
+        'subnational2': _scrape_subnational2(node),
+        'subnational2_code': _scrape_subnational2_code(node),
+        'subnational1': _scrape_subnational1(node),
+        'subnational1_code': _scrape_subnational1_code(node),
+        'country': _scrape_country(node),
+        'country_code': _scrape_country_code(node),
+        'lat': float(coords[0]),
+        'lon': float(coords[1]),
+    }
 
 
-def _get_subnational1(node):
-    """
-    Get the region where the checklist was recorded.
-
-    :param node: the Tag for the body of the Location section.
-
-    :return: the name of the region.
-
-    """
-    tag = node.find('h5', class_='obs-loc')
-    location = tag.text.split('( Map )')[0]
-    region = location.split(',')[-2].strip()
-    return region
+def _scrape_site(node):
+    tag = node.find('h6').parent.find('span')
+    return tag.text.strip()
 
 
-def _get_country(node):
-    """
-    Get the country where the checklist was recorded.
-
-    :param node: the Tag for the body of the Location section.
-
-    :return: the two-letter ISO 8601 code doe the country.
-
-    """
-    tag = node.find('h5', class_='obs-loc')
-    location = tag.text.split('( Map )')[0]
-    country = location.split(',')[-1].strip()[:2]
-    return country
+def _scrape_subnational2(node):
+    node = node.find('span', {'class': 'is-visuallyHidden'})
+    node = node.parent.find_all('li')[0]
+    return node.find('a').text.strip()
 
 
-def _get_location_identifier(node):
-    """
-    Get the unique identifier for the site if it is a hotspot.
-
-    :param node: the Tag for the body of the Location section.
-
-    :return: the unique identifier for the hotspot or None if it is not
-    a hotspot.
-
-    """
-    identifier = None
-
-    regex = re.compile(r'[Hh]otspot')
-    tag = node.find('a', text=regex)
-
-    if tag:
-        url = tag['href']
-        identifier = url.split('/')[-1]
-
-    return identifier
+def _scrape_subnational2_code(node):
+    node = node.find('span', {'class': 'is-visuallyHidden'})
+    node = node.parent.find_all('li')[0]
+    url = node.find('a')['href']
+    return url.split('/')[-1]
 
 
-def _get_latitude(node):
-    """
-    Get the latitude of the location.
-
-    :param node: the Tag for the body of the Location section.
-
-    :return: the signed latitude, positive values are north of the equator
-    and negative ones are south of the equator.
-
-    """
-    tag = node.find('a', text='Map')
-    url = tag['href']
-    query = url.split('?')[1]
-    params = query.split('&')
-    coordinates = [param for param in params if param.startswith('ll=')][0]
-    latitude = float(coordinates[3:].split(',')[0])
-    return latitude
+def _scrape_subnational1(node):
+    node = node.find('span', {'class': 'is-visuallyHidden'})
+    node = node.parent.find_all('li')[1]
+    return node.find('a').text.strip()
 
 
-def _get_longitude(node):
-    """
-    Get the longitude of the location.
+def _scrape_subnational1_code(node):
+    node = node.find('span', {'class': 'is-visuallyHidden'})
+    node = node.parent.find_all('li')[1]
+    url = node.find('a')['href']
+    return url.split('/')[-1]
 
-    :param node: the Tag for the body of the Location section.
 
-    :return: the signed latitude, positive values are east of the prime
-    meridian and negative ones are west of the prime meridian.
+def _scrape_country(node):
+    node = node.find('span', {'class': 'is-visuallyHidden'})
+    node = node.parent.find_all('li')[2]
+    return node.find('a').text.strip()
 
-    """
-    tag = node.find('a', text='Map')
-    url = tag['href']
-    query = url.split('?')[1]
-    params = query.split('&')
-    coordinates = [param for param in params if param.startswith('ll=')][0]
-    longitude = float(coordinates[3:].split(',')[1])
-    return longitude
+
+def _scrape_country_code(node):
+    node = node.find('span', {'class': 'is-visuallyHidden'})
+    node = node.parent.find_all('li')[2]
+    url = node.find('a')['href']
+    return url.split('/')[-1]
+
+
+def _scrape_location_identifier(node):
+    url = node.find('h6').parent.find('a')['href']
+    return url.split('/')[-1]
+
+
+def _scrape_coords(node):
+    tag = node.find_all('a')[1]
+    query = tag['href'].split('?')[1]
+    param = query.split('&')[1]
+    coords = param.split('=')[1]
+    return coords.split(',')
 
 
 def _point_protocol(node):
-    """
-    Get the effort for checklists following protocols where the observer(s)
-    remain stationary.
-
-    :param node: the tag for the body of the Date and Effort section.
-
-    :return: the required and optional fields for the protocol.
-
-    """
     results = {
-        'time': _get_time(node),
-        'duration': _get_duration(node),
-        'party_size': _get_party_size(node),
-        'observers': _get_observers(node),
+        'time': _scrape_time(node),
+        'duration': _scrape_duration(node),
+        'party_size': _scrape_party_size(node),
+        'observers': _scrape_observers(node),
     }
 
     if not results['time']:
@@ -236,21 +141,12 @@ def _point_protocol(node):
 
 
 def _distance_protocol(node):
-    """
-    Get the effort for checklists following protocols where the observer(s)
-    are moving.
-
-    :param node: the tag for the body of the Date and Effort section.
-
-    :return: the required and optional fields for the protocol.
-
-    """
     results = {
-        'time': _get_time(node),
-        'duration': _get_duration(node),
-        'distance': _get_distance(node),
-        'party_size': _get_party_size(node),
-        'observers': _get_observers(node),
+        'time': _scrape_time(node),
+        'duration': _scrape_duration(node),
+        'distance': _scrape_distance(node),
+        'party_size': _scrape_party_size(node),
+        'observers': _scrape_observers(node),
     }
 
     if not results['time']:
@@ -269,19 +165,11 @@ def _distance_protocol(node):
 
 
 def _incidental_observations(node):
-    """
-    Get the effort for checklists with incidental observations.
-
-    :param node: the tag for the body of the Date and Effort section.
-
-    :return: the required and optional fields.
-
-    """
     results = {
-        'observers': _get_observers(node),
+        'observers': _scrape_observers(node),
     }
 
-    time = _get_time(node)
+    time = _scrape_time(node)
     if time:
         results['time'] = time
 
@@ -289,38 +177,27 @@ def _incidental_observations(node):
 
 
 def _historical_observations(node):
-    """
-    Get the effort for checklists with historical records.
-
-    All fields here are optional, except the observer submitting the
-    checklist since any or no protocol may have been followed.
-
-    :param node: the tag for the body of the Date and Effort section.
-
-    :return: the required and optional fields for the protocol.
-
-    """
     results = {
-        'observers': _get_observers(node),
+        'observers': _scrape_observers(node),
     }
 
-    time = _get_time(node)
+    time = _scrape_time(node)
     if time:
         results['time'] = time
 
-    duration = _get_duration(node)
+    duration = _scrape_duration(node)
     if duration:
         results['duration'] = duration
 
-    distance = _get_distance(node)
+    distance = _scrape_distance(node)
     if distance != (None, None):
         results['distance'] = distance
 
-    area = _get_area(node)
+    area = _scrape_area(node)
     if area != (None, None):
         results['area'] = area
 
-    party_size = _get_party_size(node)
+    party_size = _scrape_party_size(node)
     if party_size:
         results['party_size'] = party_size
 
@@ -328,27 +205,14 @@ def _historical_observations(node):
 
 
 def _area_protocol(include_area=True):
-    """
-    Get the effort for checklists following protocols where the observer(s)
-    are covering an area.
 
-    A closure is used as the area field is optional for checklists that
-    follow the Banding protocol so we avoid writing almost identical
-    functions.
-
-    :param include_area: the tag for the body of the Date and Effort section.
-
-    :return: the required and optional fields for the protocol.
-
-    """
-
-    def _get_area_fields(node):
+    def _scrape_area_fields(node):
         results = {
-            'time': _get_time(node),
-            'area': _get_area(node),
-            'duration': _get_duration(node),
-            'party_size': _get_party_size(node),
-            'observers': _get_observers(node),
+            'time': _scrape_time(node),
+            'area': _scrape_area(node),
+            'duration': _scrape_duration(node),
+            'party_size': _scrape_party_size(node),
+            'observers': _scrape_observers(node),
         }
 
         if not results['time']:
@@ -368,30 +232,10 @@ def _area_protocol(include_area=True):
 
         return results
 
-    return _get_area_fields
+    return _scrape_area_fields
 
 
-def _get_date_and_effort(node):
-    """
-    Get the date and details of the protocol, if any, used to create the checklist.
-
-    :param node: the tag for the body of the Date and Effort section.
-
-    :return: dict containing the checklist a
-    """
-    results = {
-        'date': _get_date(node),
-        'comment': _get_comment(node),
-        'protocol': _get_protocol(node),
-    }
-
-    _get_effort = _get_date_and_effort.protocols[results['protocol']]
-    results.update(_get_effort(node))
-
-    return results
-
-
-_get_date_and_effort.protocols = {
+_protocols = {
     'Stationary': _point_protocol,
     'Traveling': _distance_protocol,
     'Incidental': _incidental_observations,
@@ -407,50 +251,32 @@ _get_date_and_effort.protocols = {
     'TNC California Waterbird Count': _point_protocol,
     'Rusty BlackbirdSpring Migration Blitz': _distance_protocol,
     'California Brown Pelican Survey': _distance_protocol,
-
 }
 
 
-def _get_protocol(node):
-    """
-    Get the method used to count the birds in the checklist.
+def _scrape_protocol(node):
+    results = {
+        'name': _scrape_protocol_name(node),
+    }
 
-    :param node: the Tag for the body of the Date and Effort section.
+    # TODO enable
+    # results.update(_protocols[results['name']](node))
 
-    :return: the name of the protocol used.
-
-    """
-    regex = re.compile(r'\s*[Pp]rotocol[:]?\s*')
-    tag = node.find('dt', text=regex)
-    field = tag.parent.dd
-    protocol = field.text.strip().capitalize()
-    return protocol
+    return results
 
 
-def _get_date(node):
-    """
-    Get the date the checklist was made.
-
-    :param node: the Tag for the body of the Date and Effort section.
-
-    :return: the date the checklist was recorded.
-
-    """
-    field = node.find('h5', class_='rep-obs-date')
-    value = ' '.join(field.text.split()[:4])
-    return datetime.datetime.strptime(value, '%a %b %d, %Y').date()
+def _scrape_protocol_name(node):
+    regex = re.compile(r'^Protocol: .*')
+    tag = node.find('span', title=regex)
+    return tag.text.strip()
 
 
-def _get_time(node):
-    """
-    Get the time the checklist was started.
+def _scrape_date(node):
+    value = node.find('time')['datetime']
+    return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M")
 
-    :param node: the Tag for the body of the Date and Effort section.
 
-    :return: the time the checklist started. May be None for Incidental
-    or Historical checklists.
-
-    """
+def _scrape_time(node):
     time = None
     field = node.find('h5', class_='rep-obs-date')
     value = ' '.join(field.text.split()[4:])
@@ -459,15 +285,7 @@ def _get_time(node):
     return time
 
 
-def _get_party_size(node):
-    """
-    Get the number of observers.
-
-    :param node: the Tag for the body of the Date and Effort section.
-
-    :return: the number of people in the group.
-
-    """
+def _scrape_party_size(node):
     count = None
     regex = re.compile(r'\s*[Pp]arty[\s]+[Ss]ize[:]?\s*')
     tag = node.find('dt', text=regex)
@@ -477,16 +295,7 @@ def _get_party_size(node):
     return count
 
 
-def _get_distance(node):
-    """
-    Get the distance covered.
-
-    :param node: the Tag for the body of the Date and Effort section.
-
-    :return: a tuple containing the (floating-point) value and units for
-    the distance covered, e.g (1.0, 'km') or (1.0, 'mi').
-
-    """
+def _scrape_distance(node):
     distance = None
     units = None
 
@@ -497,12 +306,12 @@ def _get_distance(node):
         field = tag.parent.dd
         values = field.text.lower().split()
         distance = float(values[0])
-        units = _get_distance.units[values[1]]
+        units = _scrape_distance.units[values[1]]
 
     return distance, units
 
 
-_get_distance.units = {
+_scrape_distance.units = {
     'kilometer(s)': 'km',
     'kilometre(s)': 'km',
     'km(s)':        'km',
@@ -515,16 +324,7 @@ _get_distance.units = {
 }
 
 
-def _get_area(node):
-    """
-    Get the area covered in hectares or acres.
-
-    :param node: the Tag for the body of the Date and Effort section.
-
-    :return: a tuple containing the (floating-point) value and units for
-    the area covered, e.g (1.0, 'ha') or (1.0, 'acre').
-
-    """
+def _scrape_area(node):
     area = None
     units = None
 
@@ -535,12 +335,12 @@ def _get_area(node):
         field = tag.parent.dd
         values = field.text.lower().split()
         area = float(values[0])
-        units = _get_area.units[values[1]]
+        units = _scrape_area.units[values[1]]
 
     return area, units
 
 
-_get_area.units = {
+_scrape_area.units = {
     'hectare(s)': 'ha',
     'hectares':   'ha',
     'ha':         'ha',
@@ -549,15 +349,7 @@ _get_area.units = {
 }
 
 
-def _get_duration(node):
-    """
-    Get the time spent following the protocol.
-
-    :param node: the Tag for the body of the Date and Effort section.
-
-    :return: the time, in hours and minutes.
-
-    """
+def _scrape_duration(node):
     duration = None
 
     regex = re.compile(r'\s*[Dd]uration[:]?\s*')
@@ -582,18 +374,7 @@ def _get_duration(node):
     return duration
 
 
-def _get_observers(node):
-    """
-    Get the list of observers.
-
-    NOTE: this field only contains the name of the observer that submitted
-    the checklist.
-
-    :param node: the Tag for the body of the Date and Effort section.
-
-    :return: the list of the observers' names.
-
-    """
+def _scrape_observers(node):
     observers = []
 
     regex = re.compile(r'\s*[Oo]bservers[:]?\s*')
@@ -605,99 +386,48 @@ def _get_observers(node):
     return observers
 
 
-def _get_comment(node):
-    """
-    Get the comment about the checklist.
-
-    :param node: the Tag for the body of the Date and Effort section.
-
-    :return: the comment.
-
-    """
-    regex = re.compile(r'\s*[Cc]omment[:]?\s*')
-    tag = node.find('dt', text=regex)
-
-    comment = None
-
-    if tag:
-        field = tag.parent.dd
-        comment = ' '.join(field.text.split()).capitalize()
-
-    return comment
+def _scrape_comment(node):
+    section = node.find('h6', text='Checklist Comments').parent
+    items = [p.text.strip() for p in section.find_all('p')]
+    return ' '.join(items)
 
 
-def _get_entries(node):
-    """
-    Get the list of species seen.
-
-    :param node: the tag for body of the Species section.
-
-    :return: a list of species seen.
-
-    """
+def _scrape_entries(node):
     entries = []
-    tags = node.find_all('li', class_='spp-entry')
+    node = node.find('main', {'id': 'list'})
+    tags = node.find_all('li', {'data-observation': ''})
     for tag in tags:
-        entries.append(_get_entry(tag))
+        entries.append(_scrape_entry(tag))
     return entries
 
 
-def _get_entry(node):
-    """
-    Get the details of each species seen.
-
-    :param node: the tag for an entry in the list of species.
-
-    :return: a dict containg the fields extracted.
-
-    """
+def _scrape_entry(node):
     return {
-        'species': _get_species(node),
-        'count': _get_count(node),
+        'species': _scrape_species(node),
+        'count': _scrape_count(node),
     }
 
 
-def _get_species(node):
-    """
-    Get common name of the species seen.
-
-    :param node: the tag for an entry in the list of species.
-
-    :return: the species common name.
-
-    """
-    tag = node.find('h5', class_='se-name')
+def _scrape_species(node):
+    node = node.find('div', {'class': 'Observation-species'})
+    tag = node.find('span', {'class': 'Heading-main'})
     value = ' '.join(tag.text.split())
     return value
 
 
-def _get_count(node):
-    """
-    Get the count for the species seen.
-
-    :param node: the tag for an entry in the list of species.
-
-    :return: the number of birds seen or None if the species was present
-    but not counted.
-
-    """
+def _scrape_count(node):
     count = None
-    tag = node.find('h5', class_='se-count')
+    node = node.find('div', class_='Observation-numberObserved')
+    tag = node.find_all('span')[-1]
     value = tag.text.strip().lower()
     if value != 'x':
         count = int(value)
     return count
 
 
-def _get_complete(node):
-    """
-    Get flag indicating whether the checklist contains all species seen.
-
-    :param node: the tag for the body of the last section in the checklist.
-
-    :return: True is all species seen were recorded, False if not.
-
-    """
-    tag = node.find('div', class_='all-spp-ans').find('h5')
-    value = tag.text.strip().lower()
-    return value == 'yes'
+def _scrape_complete(node):
+    regex = re.compile(r'^Protocol: .*')
+    heading = node.find('span', title=regex).parent
+    tag = heading.find('span', {'class': 'Badge-label'})
+    value = tag.text.strip()
+    return value == 'Complete'

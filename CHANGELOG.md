@@ -9,6 +9,7 @@ and by implication, [Semantic Versioning](http://semver.org/).
 ### Changed
 - Cleaned up project and added makefile to make development easier.
 - Removed unit tests.
+- Updated get_checklist to work with the latest version of the eBird page.
 
 ## [0.1] - 2017-08-21
 ### Added
