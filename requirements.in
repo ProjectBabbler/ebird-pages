@@ -1,9 +1,0 @@
-beautifulsoup4
-coverage
-flake8
-lxml
-pytest
-requests
-setupext-janitor
-tox
-wheel
