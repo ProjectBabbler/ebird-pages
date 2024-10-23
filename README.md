@@ -4,12 +4,12 @@
 
 # eBird Pages
 
-Although eBird has an API, not all the information from the database is 
+Although eBird has an API, not all the information from the database is
 available. The API, for example, does not return links to any uploaded 
-photos; comments on an individual observation are also missing. eBird 
-Pages is a set of scrapers for extracting data from various pages on 
-the eBird web site. It complements the API, giving access to all the 
-data that eBird makes publicly available.
+photos; comments on an individual observation are also missing. eBird Pages 
+is a set of scrapers for extracting data from various pages on the eBird 
+web site. It complements the API, giving access to all the data that eBird 
+makes publicly available.
 
 ## Install
 
@@ -20,8 +20,9 @@ pip install ebird-pages
 ## Usage
 
 Scraping the data from a page is as simple as a function call. For example
-to get all the data from a checklist use get_checklist() and pass in the unique 
-identifier generated when the checklist was submitted to the eBird database:
+to get all the data from a checklist use get_checklist() and pass in the 
+unique identifier generated when the checklist was submitted to the eBird
+database:
 
 ```python
 from ebird.pages import get_checklist
@@ -30,25 +31,25 @@ data = get_checklist('S38429565')
 ```
 The function returns a dict with keys for the location, date, observers, etc.
 
-### Command line
+You can also get the complete list of checklists from the "Recent Checklists"
+page, e.g. https://ebird.org/region/US-MA/recent-checklists. From there you 
+can download each checklist:
 
-Each of the functions has a corresponding script that can be used on the 
-command-line:
+```python
+import time
 
-```sh
-$ get-checklist --id S38429565 --out checklist.json
+from ebird.pages import get_checklist, get_recent_checklists
+
+for item in get_recent_checklists("US-MA"):
+    checklist = get_checklist(item["identifier"])
+    # Be nice and don't hit the servers as fast as possible
+    time.sleep(10)
 ```
-The script allows data for one or more checklists to be downloaded and written 
-to a file in JSON format.
+
 
 ## Compatibility
 
-ebird-pages works with Python 3.3+. 
-
-## Dependencies
-
-eBird Pages makes use of the following packages: Requests, BeautifulSoup4, lxml and Click.
-See requirements.txt for the version numbers of each of the libraries.
+ebird-pages works with all currently supported versions of Python (3.8+). 
 
 ## License
 
