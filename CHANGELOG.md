@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 This project adheres to [PEP440](https://www.python.org/dev/peps/pep-0440/)
 and by implication, [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+### Changed
+- The get_checklist scraper now works with the latest page layout
+
 ## [0.1] - 2017-08-21
 ### Added
 - Added get_checklist for scraping the data from the view checklist page.

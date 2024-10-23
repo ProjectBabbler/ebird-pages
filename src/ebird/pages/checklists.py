@@ -1,5 +1,6 @@
-import datetime
+import datetime as dt
 import re
+
 import requests
 
 from bs4 import BeautifulSoup
@@ -23,109 +24,165 @@ def get_checklist(identifier):
         * update scraping of different protocols
 
     """
-    url = "https://ebird.org/checklist/" + identifier
+    url = _get_url(identifier)
+    content = _get_page(url)
+    root = _get_tree(content)
+    return _get_checklist(root)
+
+
+def _get_url(identifier):
+    return "https://ebird.org/checklist/%s" % identifier
+
+
+def _get_page(url):
     response = requests.get(url)
     response.raise_for_status()
-    return _scrape_checklist(response.text)
+    return response.text
 
 
-def _scrape_checklist(contents):
-    soup = BeautifulSoup(contents, "lxml")
+def _get_tree(content):
+    return BeautifulSoup(content, "lxml")
+
+
+def _get_checklist(root):
     return {
-        'identifier': _scrape_identifier(soup),
-        'date': _scrape_date(soup),
-        'protocol': _scrape_protocol(soup),
-        'location': _scrape_location(soup),
-        'entries': _scrape_entries(soup),
-        'comment': _scrape_comment(soup),
-        'complete': _scrape_complete(soup)
+        'identifier': _get_identifier(root),
+        'date': _get_date(root),
+        'protocol': _get_protocol(root),
+        'location': _get_location(root),
+        'entries': _get_entries(root),
+        'comment': _get_comment(root),
+        'complete': _get_complete(root)
     }
 
 
-def _scrape_identifier(node):
-    return node.find('input', {'name': 'subID'})['value']
-
-
-def _scrape_location(node):
-    node = node.find_all('section')[2]
-    coords = _scrape_coords(node)
+def _get_location(root):
     return {
-        'name': _scrape_site(node),
-        'identifier': _scrape_location_identifier(node),
-        'subnational2': _scrape_subnational2(node),
-        'subnational2_code': _scrape_subnational2_code(node),
-        'subnational1': _scrape_subnational1(node),
-        'subnational1_code': _scrape_subnational1_code(node),
-        'country': _scrape_country(node),
-        'country_code': _scrape_country_code(node),
-        'lat': float(coords[0]),
-        'lon': float(coords[1]),
+        'name': _get_location_name(root),
+        'identifier': _get_location_identifier(root),
+        'subnational2': _get_subnational2(root),
+        'subnational2_code': _get_subnational2_code(root),
+        'subnational1': _get_subnational1(root),
+        'subnational1_code': _get_subnational1_code(root),
+        'country': _get_country(root),
+        'country_code': _get_country_code(root),
+        'lat': _get_latitude(root),
+        'lon': _get_longitude(root),
     }
 
 
-def _scrape_site(node):
-    tag = node.find('h6').parent.find('span')
-    return tag.text.strip()
+# IMPORTANT: All the functions that extract values, start at the root of the
+# tree, and each value is extracted independently. This reduces performance
+# but makes updating the code when the page layout changes much much easier.
+# The helper functions simplify navigating to a point in the tree where the
+# data is located.
+
+def _find_page_sections(root):
+    return root.find_all("div", {"class": "Page-section"})
 
 
-def _scrape_subnational2(node):
-    node = node.find('span', {'class': 'is-visuallyHidden'})
-    node = node.parent.find_all('li')[0]
-    return node.find('a').text.strip()
+def _get_identifier(root):
+    node = root.find('input', {'type': 'hidden', 'name': 'subID'})
+    return node['value']
 
 
-def _scrape_subnational2_code(node):
-    node = node.find('span', {'class': 'is-visuallyHidden'})
-    node = node.parent.find_all('li')[0]
-    url = node.find('a')['href']
-    return url.split('/')[-1]
+def _get_date(root):
+    node = _find_page_sections(root)[1]
+    value = node.find('time')['datetime']
+    return dt.datetime.strptime(value, "%Y-%m-%dT%H:%M")
 
 
-def _scrape_subnational1(node):
-    node = node.find('span', {'class': 'is-visuallyHidden'})
-    node = node.parent.find_all('li')[1]
-    return node.find('a').text.strip()
-
-
-def _scrape_subnational1_code(node):
-    node = node.find('span', {'class': 'is-visuallyHidden'})
-    node = node.parent.find_all('li')[1]
-    url = node.find('a')['href']
-    return url.split('/')[-1]
-
-
-def _scrape_country(node):
-    node = node.find('span', {'class': 'is-visuallyHidden'})
-    node = node.parent.find_all('li')[2]
-    return node.find('a').text.strip()
-
-
-def _scrape_country_code(node):
-    node = node.find('span', {'class': 'is-visuallyHidden'})
-    node = node.parent.find_all('li')[2]
-    url = node.find('a')['href']
-    return url.split('/')[-1]
-
-
-def _scrape_location_identifier(node):
-    url = node.find('h6').parent.find('a')['href']
-    return url.split('/')[-1]
-
-
-def _scrape_coords(node):
-    tag = node.find_all('a')[1]
-    query = tag['href'].split('?')[1]
+def _get_coordinates(root):
+    link = root.find(href=re.compile("www.google.com/maps"))
+    query = link['href'].split('?')[1]
     param = query.split('&')[1]
-    coords = param.split('=')[1]
-    return coords.split(',')
+    return param.split('=')[1]
 
 
-def _point_protocol(node):
+def _get_latitude(root):
+    return _get_coordinates(root).split(',')[0]
+
+
+def _get_longitude(root):
+    return _get_coordinates(root).split(',')[1]
+
+
+def _get_location_root(root):
+    node = _find_page_sections(root)[1]
+    return node.find('span', string="Location")
+
+
+def _get_location_name(root):
+    node = _find_page_sections(root)[1]
+    node = node.find('span', string="Location")
+    if node.find_next_sibling('a'):
+        node = node.find_next_sibling('a').find('span')
+    else:
+        node = node.find_next_sibling('span')
+    return node.text.strip()
+
+
+def _get_location_identifier(root):
+    node = _find_page_sections(root)[1]
+    node = node.find('span', string="Location")
+    if node.find_next_sibling('a'):
+        url = node.find_next_sibling('a')['href']
+        return url.split('/')[-1]
+    else:
+        return ''
+
+
+def _get_subnational2(root):
+    node = _find_page_sections(root)[1]
+    node = node.find('span', string="Region")
+    node = node.find_next_sibling('ul').find_all('li')[0]
+    return node.find('a').text.strip()
+
+
+def _get_subnational2_code(root):
+    node = _find_page_sections(root)[1]
+    node = node.find('span', string="Region")
+    node = node.find_next_sibling('ul').find_all('li')[0]
+    url = node.find('a')['href']
+    return url.split('/')[-1]
+
+
+def _get_subnational1(root):
+    node = _find_page_sections(root)[1]
+    node = node.find('span', string="Region")
+    node = node.find_next_sibling('ul').find_all('li')[1]
+    return node.find('span').text.strip()
+
+
+def _get_subnational1_code(root):
+    node = _find_page_sections(root)[1]
+    node = node.find('span', string="Region")
+    node = node.find_next_sibling('ul').find_all('li')[1]
+    url = node.find('a')['href']
+    return url.split('/')[-1]
+
+
+def _get_country(root):
+    node = _find_page_sections(root)[1]
+    node = node.find('span', string="Region")
+    node = node.find_next_sibling('ul').find_all('li')[2]
+    return node.find('span').text.strip()
+
+
+def _get_country_code(root):
+    node = _find_page_sections(root)[1]
+    node = node.find('span', string="Region")
+    node = node.find_next_sibling('ul').find_all('li')[2]
+    url = node.find('a')['href']
+    return url.split('/')[-1]
+
+
+def _point_protocol(root):
     results = {
-        'time': _scrape_time(node),
-        'duration': _scrape_duration(node),
-        'party_size': _scrape_party_size(node),
-        'observers': _scrape_observers(node),
+        'time': _get_time(root),
+        'duration': _get_duration(root),
+        'party_size': _get_party_size(root),
+        'observers': _get_observers(root),
     }
 
     if not results['time']:
@@ -140,13 +197,13 @@ def _point_protocol(node):
     return results
 
 
-def _distance_protocol(node):
+def _distance_protocol(root):
     results = {
-        'time': _scrape_time(node),
-        'duration': _scrape_duration(node),
-        'distance': _scrape_distance(node),
-        'party_size': _scrape_party_size(node),
-        'observers': _scrape_observers(node),
+        'time': _get_time(root),
+        'duration': _get_duration(root),
+        'distance': _get_distance(root),
+        'party_size': _get_party_size(root),
+        'observers': _get_observers(root),
     }
 
     if not results['time']:
@@ -166,10 +223,10 @@ def _distance_protocol(node):
 
 def _incidental_observations(node):
     results = {
-        'observers': _scrape_observers(node),
+        'observers': _get_observers(node),
     }
 
-    time = _scrape_time(node)
+    time = _get_time(node)
     if time:
         results['time'] = time
 
@@ -178,26 +235,26 @@ def _incidental_observations(node):
 
 def _historical_observations(node):
     results = {
-        'observers': _scrape_observers(node),
+        'observers': _get_observers(node),
     }
 
-    time = _scrape_time(node)
+    time = _get_time(node)
     if time:
         results['time'] = time
 
-    duration = _scrape_duration(node)
+    duration = _get_duration(node)
     if duration:
         results['duration'] = duration
 
-    distance = _scrape_distance(node)
+    distance = _get_distance(node)
     if distance != (None, None):
         results['distance'] = distance
 
-    area = _scrape_area(node)
+    area = _get_area(node)
     if area != (None, None):
         results['area'] = area
 
-    party_size = _scrape_party_size(node)
+    party_size = _get_party_size(node)
     if party_size:
         results['party_size'] = party_size
 
@@ -206,13 +263,13 @@ def _historical_observations(node):
 
 def _area_protocol(include_area=True):
 
-    def _scrape_area_fields(node):
+    def _get_area_fields(node):
         results = {
-            'time': _scrape_time(node),
-            'area': _scrape_area(node),
-            'duration': _scrape_duration(node),
-            'party_size': _scrape_party_size(node),
-            'observers': _scrape_observers(node),
+            'time': _get_time(node),
+            'area': _get_area(node),
+            'duration': _get_duration(node),
+            'party_size': _get_party_size(node),
+            'observers': _get_observers(node),
         }
 
         if not results['time']:
@@ -232,7 +289,7 @@ def _area_protocol(include_area=True):
 
         return results
 
-    return _scrape_area_fields
+    return _get_area_fields
 
 
 _protocols = {
@@ -254,77 +311,61 @@ _protocols = {
 }
 
 
-def _scrape_protocol(node):
+def _get_protocol(root):
     results = {
-        'name': _scrape_protocol_name(node),
+        'name': _get_protocol_name(root),
     }
 
     # TODO enable
-    # results.update(_protocols[results['name']](node))
+    # results.update(_protocols[results['name']](root))
 
     return results
 
 
-def _scrape_protocol_name(node):
-    regex = re.compile(r'^Protocol: .*')
-    tag = node.find('span', title=regex)
-    return tag.text.strip()
+def _get_protocol_name(root):
+    node = _find_page_sections(root)[2]
+    regex = re.compile(r'^Protocol:.*')
+    node = node.find('div', title=regex)
+    node = node.find_all('span')[1]
+    return node.text.strip()
 
 
-def _scrape_date(node):
-    value = node.find('time')['datetime']
-    return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M")
+def _get_time(root):
+    return _get_date(root).time()
 
 
-def _scrape_time(node):
-    time = None
-    field = node.find('h5', class_='rep-obs-date')
-    value = ' '.join(field.text.split()[4:])
-    if value:
-        time = datetime.datetime.strptime(value, '%I:%M %p').time()
-    return time
+def _get_duration(root):
+    node = _find_page_sections(root)[2]
+    regex = re.compile(r'^Duration:.*')
+    node = node.find('div', title=regex)
+    node = node.find_all('span')[1]
+    value = node.text.strip()
+    hours = value.split(",", 1)[0].strip().split(" ")[0]
+    minutes = value.split(",", 1)[1].strip().split(" ")[0]
+    duration = dt.timedelta(hours=int(hours), minutes=int(minutes))
+    return duration
 
 
-def _scrape_party_size(node):
-    count = None
-    regex = re.compile(r'\s*[Pp]arty[\s]+[Ss]ize[:]?\s*')
-    tag = node.find('dt', text=regex)
-    if tag:
-        field = tag.parent.dd
-        count = int(field.text.strip())
-    return count
+def _get_party_size(root):
+    node = _find_page_sections(root)[2]
+    regex = re.compile(r'^Observers:.*')
+    node = node.find('div', title=regex)
+    node = node.find_all('span')[1]
+    return int(node.text.strip())
 
 
-def _scrape_distance(node):
-    distance = None
-    units = None
-
-    regex = re.compile(r'\s*[Dd]istance[:]?\s*')
-    tag = node.find('dt', text=regex)
-
-    if tag:
-        field = tag.parent.dd
-        values = field.text.lower().split()
-        distance = float(values[0])
-        units = _scrape_distance.units[values[1]]
-
-    return distance, units
+def _get_distance(root):
+    node = _find_page_sections(root)[2]
+    regex = re.compile(r'^Distance:.*')
+    node = node.find('span', title=regex)
+    node = node.find_all('span')[1]
+    value = node.text.strip()
+    distance = value.split(" ")[0]
+    units = value.split(" ")[1]
+    return float(distance), units
 
 
-_scrape_distance.units = {
-    'kilometer(s)': 'km',
-    'kilometre(s)': 'km',
-    'km(s)':        'km',
-    'kilometers':   'km',
-    'kilometres':   'km',
-    'km':           'km',
-    'kms':          'km',
-    'mile(s)':      'mi',
-    'miles':        'mi',
-}
-
-
-def _scrape_area(node):
+def _get_area(node):
     area = None
     units = None
 
@@ -335,12 +376,12 @@ def _scrape_area(node):
         field = tag.parent.dd
         values = field.text.lower().split()
         area = float(values[0])
-        units = _scrape_area.units[values[1]]
+        units = _get_area.units[values[1]]
 
     return area, units
 
 
-_scrape_area.units = {
+_get_area.units = {
     'hectare(s)': 'ha',
     'hectares':   'ha',
     'ha':         'ha',
@@ -349,32 +390,7 @@ _scrape_area.units = {
 }
 
 
-def _scrape_duration(node):
-    duration = None
-
-    regex = re.compile(r'\s*[Dd]uration[:]?\s*')
-    tag = node.find('dt', text=regex)
-
-    if tag:
-        field = tag.parent.dd
-        values = field.text.lower().split()
-
-        if 'minute(s)' in values:
-            minutes = int(values[values.index('minute(s)') - 1])
-        else:
-            minutes = 0
-
-        if 'hour(s)' in values:
-            hours = int(values[values.index('hour(s)') - 1])
-        else:
-            hours = 0
-
-        duration = datetime.timedelta(hours=hours, minutes=minutes)
-
-    return duration
-
-
-def _scrape_observers(node):
+def _get_observers(node):
     observers = []
 
     regex = re.compile(r'\s*[Oo]bservers[:]?\s*')
@@ -386,36 +402,39 @@ def _scrape_observers(node):
     return observers
 
 
-def _scrape_comment(node):
-    section = node.find('h6', text='Checklist Comments').parent
-    items = [p.text.strip() for p in section.find_all('p')]
-    return ' '.join(items)
+def _get_comment(root):
+    items = []
+    if node := root.find(id='checklist-comments'):
+        for p in node.find_next_siblings('p'):
+            items.append(p.text.strip())
+    return '\n'.join(items)
 
 
-def _scrape_entries(node):
-    entries = []
-    node = node.find('main', {'id': 'list'})
+def _get_entries(root):
+    node = _find_page_sections(root)[3]
+    node = node.find('div', {'id': 'list'})
     tags = node.find_all('li', {'data-observation': ''})
+    entries = []
     for tag in tags:
-        entries.append(_scrape_entry(tag))
+        entries.append(_get_entry(tag))
     return entries
 
 
-def _scrape_entry(node):
+def _get_entry(node):
     return {
-        'species': _scrape_species(node),
-        'count': _scrape_count(node),
+        'species': _get_species(node),
+        'count': _get_count(node),
     }
 
 
-def _scrape_species(node):
+def _get_species(node):
     node = node.find('div', {'class': 'Observation-species'})
     tag = node.find('span', {'class': 'Heading-main'})
     value = ' '.join(tag.text.split())
     return value
 
 
-def _scrape_count(node):
+def _get_count(node):
     count = None
     node = node.find('div', class_='Observation-numberObserved')
     tag = node.find_all('span')[-1]
@@ -425,9 +444,11 @@ def _scrape_count(node):
     return count
 
 
-def _scrape_complete(node):
-    regex = re.compile(r'^Protocol: .*')
-    heading = node.find('span', title=regex).parent
-    tag = heading.find('span', {'class': 'Badge-label'})
-    value = tag.text.strip()
+def _get_complete(root):
+    node = _find_page_sections(root)[2]
+    regex = re.compile(r'^Protocol:.*')
+    node = node.find('div', title=regex).parent
+    node = node.find_next_sibling("div")
+    node = node.find('span', {'class': 'Badge-label'})
+    value = node.text.strip()
     return value == 'Complete'
