@@ -2,7 +2,7 @@ abstract: Scrapers for eBird checklist web pages
 authors:
   - name: Project Babbler
 cff-version: 1.2.0
-date-released: 2017-08-21
+date-released: 2024-10-23
 keywords:
   - eBird
   - web pages
@@ -12,4 +12,4 @@ message: If you use this software, please cite it using the metadata from this f
 repository-artifact: "http://pypi.python.org/pypi/ebird-pages/"
 repository-code: "https://github.com/ProjectBabbler/ebird-pages"
 title: eBird Pages
-version: 0.1.0
+version: 0.2.0
