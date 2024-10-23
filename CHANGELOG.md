@@ -6,6 +6,8 @@ This project adheres to [PEP440](https://www.python.org/dev/peps/pep-0440/)
 and by implication, [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Added
+- Added get_recent_checklists to scrape the "Recent Checklists" page
 ### Changed
 - The get_checklist scraper now works with the latest page layout
 
