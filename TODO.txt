@@ -1,2 +1,1 @@
 # TODO Add utility to convert checklist to a list of observations with same keys as the eBird API.
-# TODO idea for integration test: scrape recent submissions page and download all the checklists listed.
